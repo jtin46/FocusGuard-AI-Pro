@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Eye-Tracking Monitor</title>
+    <!-- CSS Link -->
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Face-API.js library from CDN -->
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    
+    <!-- Your Logic Script -->
+    <script defer src="script.js"></script>
+</head>
+<body>
+
+    <div class="app-container">
+        <header>
+            <h1>OPTICAL SCANNER <span class="version">v1.0</span></h1>
+            <p id="status">SYSTEM READY: STANDBY</p>
+        </header>
+
+        <div class="video-parent">
+            <!-- The Webcam Feed -->
+            <video id="video" width="640" height="480" autoplay muted></video>
+            
+            <!-- The Drawing Layer (Eyes will be drawn here) -->
+            <canvas id="overlay"></canvas>
+            
+            <!-- The Animated Scanning Line -->
+            <div id="scan-line" class="hidden"></div>
+        </div>
+
+        <div class="controls">
+            <button id="start-btn">Initialize Scanner</button>
+            <button id="stop-btn" class="hidden">Terminate Session</button>
+        </div>
+
+        <div class="instructions">
+            <small>Note: Ensure face is well-lit for accurate eye-tracking.</small>
+        </div>
+    </div>
+
+    <!-- Audio Element for Custom Message -->
+    <!-- The 'loop' attribute ensures the message repeats until you wake up -->
+    <audio id="alert-audio" src="assets/alert.mp3" loop></audio>
+
+</body>
+</html>
