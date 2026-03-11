@@ -3,47 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Eye-Tracking Monitor</title>
-    <!-- CSS Link -->
+    <title>FocusGuard AI | Pro Monitor</title>
     <link rel="stylesheet" href="style.css">
-    
-    <!-- Face-API.js library from CDN -->
+    <!-- Load AI Library First -->
     <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-    
-    <!-- Your Logic Script -->
     <script defer src="script.js"></script>
 </head>
 <body>
 
     <div class="app-container">
+        <div class="stats-bar">
+            <div class="stat-item">
+                <span class="label">SESSION TIME</span>
+                <span id="timer" class="value">00:00:00</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <span class="label">ALERTS</span>
+                <span id="alert-count" class="value">0</span>
+            </div>
+        </div>
+
         <header>
-            <h1>OPTICAL SCANNER <span class="version">v1.0</span></h1>
-            <p id="status">SYSTEM READY: STANDBY</p>
+            <h1>FOCUSGUARD <span class="badge">PRO</span></h1>
+            <p id="status">SYSTEM: STANDBY</p>
         </header>
 
         <div class="video-parent">
-            <!-- The Webcam Feed -->
             <video id="video" width="640" height="480" autoplay muted></video>
-            
-            <!-- The Drawing Layer (Eyes will be drawn here) -->
             <canvas id="overlay"></canvas>
-            
-            <!-- The Animated Scanning Line -->
             <div id="scan-line" class="hidden"></div>
         </div>
 
         <div class="controls">
-            <button id="start-btn">Initialize Scanner</button>
-            <button id="stop-btn" class="hidden">Terminate Session</button>
-        </div>
-
-        <div class="instructions">
-            <small>Note: Ensure face is well-lit for accurate eye-tracking.</small>
+            <button id="start-btn">Start Deep Work</button>
+            <button id="stop-btn" class="hidden">End Session</button>
         </div>
     </div>
 
-    <!-- Audio Element for Custom Message -->
-    <!-- The 'loop' attribute ensures the message repeats until you wake up -->
+    <!-- Ensure this file exists in assets/alert.mp3 -->
     <audio id="alert-audio" src="assets/alert.mp3" loop></audio>
 
 </body>
