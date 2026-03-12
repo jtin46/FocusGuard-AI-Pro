@@ -13,22 +13,37 @@ let seconds = 0, minutes = 0;
 let totalAlerts = 0;
 let closedFrames = 0;
 let isAlarmActive = false;
+let detectionFailures = 0;
+let isMobile = window.innerWidth < 768;
+let currentEAR = 0; // For debugging
 
-// DYNAMIC SENSITIVITY: Lower value for mobile cameras (wider angle)
-const EAR_THRESHOLD = window.innerWidth < 768 ? 0.19 : 0.21;
-const REQ_FRAMES = 5; // ~1 second of closure
+// DYNAMIC SENSITIVITY: Calibrated based on actual eye EAR values
+// Adjust threshold based on open vs closed eye EAR difference
+const EAR_THRESHOLD = isMobile ? 0.20 : 0.22;
+const REQ_FRAMES = 3; // ~600ms of closure detection (more responsive)
+const MAX_DETECTION_FAILURES = 10; // Allow 2 seconds of failures before alerting
 
 async function initApp() {
     statusText.innerText = "CALIBRATING AI MODELS...";
     const MODEL_URL = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
     
     try {
-        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+        // Load all models before starting
+        await Promise.all([
+            faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+            faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL)
+        ]);
+        statusText.innerText = "MODELS LOADED - STARTING CAMERA...";
         startCamera();
         startTimer();
     } catch (e) {
         statusText.innerText = "LOAD ERROR: CHECK CONNECTION";
+        console.error("Model loading error:", e);
+        // Retry after 2 seconds on mobile
+        if (isMobile) {
+            statusText.innerText = "RETRYING MODEL LOAD...";
+            setTimeout(() => initApp(), 2000);
+        }
     }
 }
 
@@ -37,23 +52,38 @@ function startCamera() {
         video: { 
             width: { ideal: 640 }, 
             height: { ideal: 480 }, 
-            facingMode: "user" 
-        } 
+            facingMode: "user"
+        },
+        audio: false
     };
 
-    navigator.mediaDevices.getUserMedia(constraints).then(stream => {
-        video.srcObject = stream;
-        video.onloadedmetadata = () => {
-            const displaySize = { width: video.offsetWidth, height: video.offsetHeight };
-            canvas.width = displaySize.width;
-            canvas.height = displaySize.height;
-            faceapi.matchDimensions(canvas, displaySize);
+    navigator.mediaDevices.getUserMedia(constraints)
+        .then(stream => {
+            video.srcObject = stream;
+            statusText.innerText = "CAMERA READY - DETECTING FACE...";
             
-            scanLine.classList.remove('hidden');
-            statusText.innerText = "SCANNER ACTIVE";
-            runDetection(displaySize);
-        };
-    });
+            video.onloadedmetadata = () => {
+                const displaySize = { width: video.offsetWidth, height: video.offsetHeight };
+                canvas.width = displaySize.width;
+                canvas.height = displaySize.height;
+                faceapi.matchDimensions(canvas, displaySize);
+                
+                scanLine.classList.remove('hidden');
+                statusText.innerText = "SCANNER ACTIVE";
+                runDetection(displaySize);
+            };
+        })
+        .catch(err => {
+            console.error("Camera error:", err);
+            if (err.name === 'NotAllowedError') {
+                statusText.innerText = "CAMERA PERMISSION DENIED";
+            } else if (err.name === 'NotFoundError') {
+                statusText.innerText = "NO CAMERA FOUND";
+            } else {
+                statusText.innerText = "CAMERA ERROR - RETRYING...";
+                setTimeout(() => startCamera(), 2000);
+            }
+        });
 }
 
 function startTimer() {
@@ -66,29 +96,52 @@ function startTimer() {
 
 async function runDetection(displaySize) {
     monitoringInterval = setInterval(async () => {
-        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
-                                        .withFaceLandmarks();
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        try {
+            const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+                                            .withFaceLandmarks();
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        if (!detection) {
-            handleAlert(true, "USER NOT FOUND");
-            return;
+            if (!detection) {
+                detectionFailures++;
+                // Only alert after multiple failed detections (grace period)
+                if (detectionFailures >= MAX_DETECTION_FAILURES) {
+                    handleAlert(true, "USER NOT FOUND");
+                }
+                return;
+            }
+
+            // Reset failure counter on successful detection
+            detectionFailures = 0;
+
+            const landmarks = faceapi.resizeResults(detection, displaySize).landmarks;
+            const leftEAR = getEAR(landmarks.getLeftEye());
+            const rightEAR = getEAR(landmarks.getRightEye());
+            const avgEAR = (leftEAR + rightEAR) / 2;
+            
+            // Store current EAR for debugging
+            currentEAR = avgEAR.toFixed(3);
+
+            const isClosed = avgEAR < EAR_THRESHOLD;
+            
+            // Draw Eyes (Red if closed, Cyan if open)
+            const color = isClosed ? '#ff4757' : '#00f2ff';
+            drawEye(ctx, landmarks.getLeftEye(), color);
+            drawEye(ctx, landmarks.getRightEye(), color);
+            
+            // Visual feedback: show EAR value (optional, for calibration)
+            ctx.fillStyle = '#888888';
+            ctx.font = '12px monospace';
+            ctx.fillText(`EAR: ${currentEAR}`, 10, 20);
+
+            handleAlert(isClosed, "DROWSINESS DETECTED");
+        } catch (e) {
+            console.error("Detection error:", e);
+            detectionFailures++;
+            if (detectionFailures >= MAX_DETECTION_FAILURES) {
+                handleAlert(true, "DETECTION ERROR");
+            }
         }
-
-        const landmarks = faceapi.resizeResults(detection, displaySize).landmarks;
-        const leftEAR = getEAR(landmarks.getLeftEye());
-        const rightEAR = getEAR(landmarks.getRightEye());
-        const avgEAR = (leftEAR + rightEAR) / 2;
-
-        const isClosed = avgEAR < EAR_THRESHOLD;
-        
-        // Draw Eyes (Red if closed, Cyan if open)
-        const color = isClosed ? '#ff4757' : '#00f2ff';
-        drawEye(ctx, landmarks.getLeftEye(), color);
-        drawEye(ctx, landmarks.getRightEye(), color);
-
-        handleAlert(isClosed, "DROWSINESS DETECTED");
     }, 200);
 }
 
@@ -130,7 +183,17 @@ function handleAlert(drowsy, msg) {
 
 startBtn.addEventListener('click', () => {
     // Unlock audio for mobile browsers
-    alertAudio.play().then(() => alertAudio.pause());
+    alertAudio.play().then(() => alertAudio.pause()).catch(() => {
+        console.log("Audio autoplay may be restricted on this device");
+    });
+    
+    // Show device info and thresholds for debugging
+    if (isMobile) {
+        console.log("Mobile device detected - EAR Threshold:", EAR_THRESHOLD, "Frames required:", REQ_FRAMES);
+    } else {
+        console.log("Desktop device detected - EAR Threshold:", EAR_THRESHOLD, "Frames required:", REQ_FRAMES);
+    }
+    
     initApp();
     startBtn.classList.add('hidden'); 
     stopBtn.classList.remove('hidden');
