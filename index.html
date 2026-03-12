@@ -2,10 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FocusGuard AI | Pro Monitor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FocusGuard AI | Pro Dashboard</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Load AI Library First -->
     <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <script defer src="script.js"></script>
 </head>
@@ -15,7 +14,7 @@
         <div class="stats-bar">
             <div class="stat-item">
                 <span class="label">SESSION TIME</span>
-                <span id="timer" class="value">00:00:00</span>
+                <span id="timer" class="value">00:00</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat-item">
@@ -26,22 +25,21 @@
 
         <header>
             <h1>FOCUSGUARD <span class="badge">PRO</span></h1>
-            <p id="status">SYSTEM: STANDBY</p>
+            <p id="status">INITIALIZING NEURAL NETWORK...</p>
         </header>
 
         <div class="video-parent">
-            <video id="video" width="640" height="480" autoplay muted></video>
+            <video id="video" autoplay muted playsinline></video>
             <canvas id="overlay"></canvas>
             <div id="scan-line" class="hidden"></div>
         </div>
 
         <div class="controls">
-            <button id="start-btn">Start Deep Work</button>
+            <button id="start-btn">Start Session</button>
             <button id="stop-btn" class="hidden">End Session</button>
         </div>
     </div>
 
-    <!-- Ensure this file exists in assets/alert.mp3 -->
     <audio id="alert-audio" src="assets/alert.mp3" loop></audio>
 
 </body>

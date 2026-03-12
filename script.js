@@ -9,17 +9,17 @@ const stopBtn = document.getElementById('stop-btn');
 const scanLine = document.getElementById('scan-line');
 
 let monitoringInterval, timerInterval;
-let seconds = 0, minutes = 0, hours = 0;
+let seconds = 0, minutes = 0;
 let totalAlerts = 0;
 let closedFrames = 0;
-let isAlarming = false;
+let isAlarmActive = false;
 
-// SENSITIVITY CALIBRATION
-const EAR_THRESHOLD = 0.23; // Higher value = more sensitive to closing
-const REQ_FRAMES = 4;        // How many checks before alarm
+// DYNAMIC SENSITIVITY: Lower value for mobile cameras (wider angle)
+const EAR_THRESHOLD = window.innerWidth < 768 ? 0.19 : 0.21;
+const REQ_FRAMES = 5; // ~1 second of closure
 
 async function initApp() {
-    statusText.innerText = "INITIALIZING MODELS...";
+    statusText.innerText = "CALIBRATING AI MODELS...";
     const MODEL_URL = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
     
     try {
@@ -28,19 +28,30 @@ async function initApp() {
         startCamera();
         startTimer();
     } catch (e) {
-        statusText.innerText = "LOAD ERROR - CHECK CONNECTION";
+        statusText.innerText = "LOAD ERROR: CHECK CONNECTION";
     }
 }
 
 function startCamera() {
-    navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+    const constraints = { 
+        video: { 
+            width: { ideal: 640 }, 
+            height: { ideal: 480 }, 
+            facingMode: "user" 
+        } 
+    };
+
+    navigator.mediaDevices.getUserMedia(constraints).then(stream => {
         video.srcObject = stream;
         video.onloadedmetadata = () => {
-            canvas.width = 640; canvas.height = 480;
-            faceapi.matchDimensions(canvas, { width: 640, height: 480 });
+            const displaySize = { width: video.offsetWidth, height: video.offsetHeight };
+            canvas.width = displaySize.width;
+            canvas.height = displaySize.height;
+            faceapi.matchDimensions(canvas, displaySize);
+            
             scanLine.classList.remove('hidden');
-            statusText.innerText = "MONITORING: ACTIVE";
-            runDetection();
+            statusText.innerText = "SCANNER ACTIVE";
+            runDetection(displaySize);
         };
     });
 }
@@ -49,40 +60,36 @@ function startTimer() {
     timerInterval = setInterval(() => {
         seconds++;
         if(seconds == 60) { seconds = 0; minutes++; }
-        if(minutes == 60) { minutes = 0; hours++; }
-        timerDisplay.innerText = 
-            `${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}`;
+        timerDisplay.innerText = `${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}`;
     }, 1000);
 }
 
-async function runDetection() {
+async function runDetection(displaySize) {
     monitoringInterval = setInterval(async () => {
-        // Using TinyFaceDetector for speed/real-time performance
         const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
                                         .withFaceLandmarks();
-        
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         if (!detection) {
-            handleAlert(true, "USER DISTRACTED");
+            handleAlert(true, "USER NOT FOUND");
             return;
         }
 
-        const landmarks = faceapi.resizeResults(detection, { width: 640, height: 480 }).landmarks;
+        const landmarks = faceapi.resizeResults(detection, displaySize).landmarks;
         const leftEAR = getEAR(landmarks.getLeftEye());
         const rightEAR = getEAR(landmarks.getRightEye());
         const avgEAR = (leftEAR + rightEAR) / 2;
 
         const isClosed = avgEAR < EAR_THRESHOLD;
         
-        // Draw Eyes
+        // Draw Eyes (Red if closed, Cyan if open)
         const color = isClosed ? '#ff4757' : '#00f2ff';
         drawEye(ctx, landmarks.getLeftEye(), color);
         drawEye(ctx, landmarks.getRightEye(), color);
 
-        handleAlert(isClosed, "WAKE UP!");
-    }, 150);
+        handleAlert(isClosed, "DROWSINESS DETECTED");
+    }, 200);
 }
 
 function getEAR(eye) {
@@ -103,21 +110,30 @@ function handleAlert(drowsy, msg) {
     if (drowsy) {
         closedFrames++;
         if (closedFrames >= REQ_FRAMES) {
-            if(!isAlarming) { totalAlerts++; alertDisplay.innerText = totalAlerts; isAlarming = true; }
-            statusText.innerText = msg; statusText.style.color = "#ff4757";
+            if(!isAlarmActive) { 
+                totalAlerts++; 
+                alertDisplay.innerText = totalAlerts; 
+                isAlarmActive = true; 
+            }
+            statusText.innerText = msg;
+            statusText.style.color = "#ff4757";
             if (alertAudio.paused) alertAudio.play();
         }
     } else {
-        closedFrames = 0; isAlarming = false;
-        statusText.innerText = "MONITORING: ACTIVE"; statusText.style.color = "#00f2ff";
+        closedFrames = 0;
+        isAlarmActive = false;
+        statusText.innerText = "SCANNER ACTIVE";
+        statusText.style.color = "#00f2ff";
         if (!alertAudio.paused) { alertAudio.pause(); alertAudio.currentTime = 0; }
     }
 }
 
 startBtn.addEventListener('click', () => {
+    // Unlock audio for mobile browsers
     alertAudio.play().then(() => alertAudio.pause());
     initApp();
-    startBtn.classList.add('hidden'); stopBtn.classList.remove('hidden');
+    startBtn.classList.add('hidden'); 
+    stopBtn.classList.remove('hidden');
 });
 
 stopBtn.addEventListener('click', () => location.reload());
