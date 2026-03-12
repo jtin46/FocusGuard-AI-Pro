@@ -200,3 +200,27 @@ startBtn.addEventListener('click', () => {
 });
 
 stopBtn.addEventListener('click', () => location.reload());
+
+// Handle orientation changes on mobile
+window.addEventListener('orientationchange', () => {
+    console.log('Orientation changed to:', window.orientation);
+    // Give the browser time to adjust layout
+    setTimeout(() => {
+        if (video.srcObject) {
+            const displaySize = { width: video.offsetWidth, height: video.offsetHeight };
+            canvas.width = displaySize.width;
+            canvas.height = displaySize.height;
+            faceapi.matchDimensions(canvas, displaySize);
+        }
+    }, 300);
+});
+
+// Handle window resize for responsive updates
+window.addEventListener('resize', () => {
+    if (video.srcObject) {
+        const displaySize = { width: video.offsetWidth, height: video.offsetHeight };
+        canvas.width = displaySize.width;
+        canvas.height = displaySize.height;
+        faceapi.matchDimensions(canvas, displaySize);
+    }
+});
